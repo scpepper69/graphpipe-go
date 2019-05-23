@@ -116,7 +116,7 @@ devserver:
 runtime-container:
 	docker build \
 		-f Dockerfile.$(RUN_TYPE) \
-		-t $(GRAPHPIPE_TF_IMAGE):$(RUN_TYPE) \
+		-t $(GRAPHPIPE_TF_IMAGE):$(RUN_TYPE)1.13.1 \
 		--build-arg http_proxy=$(http_proxy) \
 		--build-arg https_proxy=$(https_proxy) \
 		.
@@ -126,7 +126,7 @@ runserver:
         -e http_proxy=$(http_proxy) \
         -e https_proxy=$(https_proxy) \
         -p 9000:9000 \
-        $(GRAPHPIPE_TF_IMAGE):$(RUN_TYPE) \
+        $(GRAPHPIPE_TF_IMAGE):$(RUN_TYPE)1.13.1 \
         --model=$(MODEL_URL) \
 		--listen=0.0.0.0:9000
 

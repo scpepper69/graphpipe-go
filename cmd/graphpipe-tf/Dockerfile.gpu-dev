@@ -1,4 +1,4 @@
-FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
+FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu16.04
 RUN apt-get update && apt-get install -y software-properties-common
 RUN add-apt-repository ppa:gophers/archive
 
@@ -7,19 +7,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     patch \
     golang-1.10-go \
-    python-dev
+    python-dev \
+    linux-libc-dev \
+    manpages-dev \
+    pkg-config \
+    zip \
+    g++ \
+    zlib1g-dev \
+    unzip \
+    python \
+    wget 
 
-RUN curl http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1404/x86_64/7fa2af80.pub | apt-key add -
+
+RUN curl http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/7fa2af80.pub | apt-key add -
 RUN echo "deb http://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1604/x86_64 /" > /etc/apt/sources.list.d/nvidia-ml.list
 
-RUN apt-get update && apt-get install -y --no-install-recommends --allow-change-held-packages \
-    libnccl2=2.3.5-2+cuda9.0 \
-    libnccl-dev=2.3.5-2+cuda9.0
+RUN apt-get update && apt-get install -y --no-install-recommends --allow-change-held-packages --allow-downgrades \
+    libnccl2=2.3.5-2+cuda10.0 \
+    libnccl-dev=2.3.5-2+cuda10.0
 
-
-RUN echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" | tee /etc/apt/sources.list.d/bazel.list
-RUN curl https://bazel.build/bazel-release.pub.gpg |  apt-key add -
-RUN apt-get update && apt-get install -y bazel
+RUN wget https://github.com/bazelbuild/bazel/releases/download/0.19.2/bazel-0.19.2-installer-linux-x86_64.sh
+RUN chmod +x bazel-0.19.2-installer-linux-x86_64.sh
+RUN ./bazel-0.19.2-installer-linux-x86_64.sh --user
 
 ENV PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/go-1.10/bin:/go/bin
 
@@ -29,7 +38,7 @@ RUN go get -u github.com/kardianos/govendor
 
 RUN git clone https://github.com/tensorflow/tensorflow /tensorflow
 WORKDIR /tensorflow
-RUN git pull && git checkout v1.11.0
+RUN git pull && git checkout v1.13.1
 
 ENV TF_NEED_CUDA 1
 ENV TF_CUDA_COMPUTE_CAPABILITIES=3.0,3.5,5.2,6.0,6.1
@@ -37,10 +46,21 @@ ENV TF_NEED_MKL 1
 ENV TF_DOWNLOAD_MKL 1
 
 RUN ln -s /usr/lib/x86_64-linux-gnu/libnccl.so.2 /usr/lib/libnccl.so.2
-ENV NCCL_INSTALL_PATH="/usr/"
+ENV TF_NCCL_VERSION 2
+ENV NCCL_INSTALL_PATH="/usr/lib"
+ENV NCCL_HDR_PATH="/usr/include"
+
+#RUN ln -s /usr/include/nccl.h /tensorflow/third_party/nccl/nccl.h
+
+RUN cp -p /usr/lib/x86_64-linux-gnu/libcudnn.so.7.5.1 /usr/local/cuda-10.0/lib64
+RUN ln -s /usr/local/cuda-10.0/lib64/libcudnn.so.7.5.1 /usr/local/cuda-10.0/lib64/libcudnn.so.7
+RUN ln -s /usr/local/cuda-10.0/lib64/libcudnn.so.7 /usr/local/cuda-10.0/lib64/libcudnn.so
+
+RUN export CUDA_HOME=/usr/local/cuda
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu/libcudnn.so.7:/usr/local/cuda/lib64:/usr/local/cuda-10.0/lib64:/usr/local/cuda-10.0/compat
 
 RUN tensorflow/tools/ci_build/builds/configured GPU
-RUN bazel build --config=mkl --config=cuda --config=monolithic //tensorflow:libtensorflow.so
+RUN /root/bin/bazel build --config=mkl --config=cuda --config=monolithic --verbose_failures //tensorflow:libtensorflow.so
 RUN cp bazel-bin/tensorflow/libtensorflow.so /usr/local/lib
 RUN cp /root/.cache/bazel/_bazel_root/*/external/mkl_linux/lib/* /usr/local/lib
 RUN ldconfig
